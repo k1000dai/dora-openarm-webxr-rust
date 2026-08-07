@@ -13,9 +13,10 @@
 // limitations under the License.
 
 //! Command-line/environment option parsing, matching upstream `main.py`'s
-//! `argparse` setup: for each option, `CLI flag > environment variable >
-//! hard-coded default`, and `--tls-certificate-file`/`--tls-key-file` are
-//! required only when their environment variable is also unset (`argparse`:
+//! `argparse` setup (including `video.add_arguments`): for each option, `CLI
+//! flag > environment variable > hard-coded default`, and
+//! `--tls-certificate-file`/`--tls-key-file` are required only when their
+//! environment variable is also unset (`argparse`:
 //! `required=tls_certificate_file_default is None`).
 //!
 //! The environment lookup is injected as a closure rather than read directly
@@ -41,6 +42,9 @@ struct RawArgs {
     /// TLS key file for the certificate file.
     #[arg(long = "tls-key-file")]
     tls_key_file: Option<PathBuf>,
+    /// YAML file with the head camera panel parameters.
+    #[arg(long = "view-configuration-file")]
+    view_configuration_file: Option<PathBuf>,
 }
 
 /// Resolved server configuration: CLI flag, then environment variable, then
@@ -55,6 +59,10 @@ pub struct Args {
     pub tls_certificate_file: PathBuf,
     /// The TLS key file for the certificate (`--tls-key-file`/`TLS_KEY_FILE`).
     pub tls_key_file: PathBuf,
+    /// The YAML file describing how the head camera is drawn in the VR
+    /// device (`--view-configuration-file`/`VIEW_CONFIGURATION_FILE`).
+    /// `None` keeps the built-in default view configuration.
+    pub view_configuration_file: Option<PathBuf>,
 }
 
 /// An error resolving [`Args`].
@@ -138,11 +146,18 @@ impl Args {
             .or_else(|| env("TLS_KEY_FILE").map(PathBuf::from))
             .ok_or(ArgsError::MissingTlsKeyFile)?;
 
+        // Optional: without it the node keeps the built-in default view
+        // configuration (`argparse`: no `required=`, `default=os.getenv(...)`).
+        let view_configuration_file = raw
+            .view_configuration_file
+            .or_else(|| env("VIEW_CONFIGURATION_FILE").map(PathBuf::from));
+
         Ok(Self {
             host,
             port,
             tls_certificate_file,
             tls_key_file,
+            view_configuration_file,
         })
     }
 

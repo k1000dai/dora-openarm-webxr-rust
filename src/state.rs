@@ -27,7 +27,9 @@
 
 use crate::protocol::{ClientMessage, FrameMessage, PoseJson};
 use crate::smoothing::OneEuroPoseSmoother;
-use crate::transform::{RawPose, Side, adjust_pose, map_trigger_to_gripper};
+use crate::transform::{
+    DEFAULT_FRAME_OFFSET_CELL, RawPose, Side, adjust_pose_with_offset, map_trigger_to_gripper,
+};
 
 /// Output ids, matching upstream `main.py` and `README.md` exactly.
 pub mod output_id {
@@ -96,6 +98,7 @@ fn emit(emissions: &mut Vec<Emission>, output_id: &'static str, value: EmissionV
 pub struct FrameProcessor {
     right: OneEuroPoseSmoother,
     left: OneEuroPoseSmoother,
+    frame_offset: [f32; 3],
 }
 
 impl Default for FrameProcessor {
@@ -109,9 +112,16 @@ impl FrameProcessor {
     /// in `_websocket_endpoint` (`min_cutoff=2.0, beta=0.04, d_cutoff=1.5`).
     #[must_use]
     pub fn new() -> Self {
+        Self::with_frame_offset(DEFAULT_FRAME_OFFSET_CELL)
+    }
+
+    /// Builds a fresh processor with a custom neutral hand offset.
+    #[must_use]
+    pub fn with_frame_offset(frame_offset: [f32; 3]) -> Self {
         Self {
             right: OneEuroPoseSmoother::new(2.0, 0.04, 1.5),
             left: OneEuroPoseSmoother::new(2.0, 0.04, 1.5),
+            frame_offset,
         }
     }
 
@@ -176,6 +186,7 @@ impl FrameProcessor {
             output_id::TRIGGER_RIGHT,
             output_id::JOYSTICK_X_RIGHT,
             output_id::JOYSTICK_Y_RIGHT,
+            self.frame_offset,
             &mut emissions,
         );
         Self::process_side(
@@ -189,6 +200,7 @@ impl FrameProcessor {
             output_id::TRIGGER_LEFT,
             output_id::JOYSTICK_X_LEFT,
             output_id::JOYSTICK_Y_LEFT,
+            self.frame_offset,
             &mut emissions,
         );
 
@@ -209,6 +221,7 @@ impl FrameProcessor {
         trigger_output_id: &'static str,
         joystick_x_output_id: &'static str,
         joystick_y_output_id: &'static str,
+        frame_offset: [f32; 3],
         emissions: &mut Vec<Emission>,
     ) {
         if let (Some(pose), Some(trigger)) = (pose, trigger) {
@@ -221,7 +234,7 @@ impl FrameProcessor {
                 qz: pose.qz,
                 qw: pose.qw,
             };
-            let adjusted = adjust_pose(&raw_pose);
+            let adjusted = adjust_pose_with_offset(&raw_pose, frame_offset);
             let smoothed = smoother.smooth(smoother_time, adjusted);
             let gripper = map_trigger_to_gripper(trigger, side) as f32;
             let mut pose_with_gripper = [0.0f32; 8];

@@ -12,9 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { createCameraPanel } from "./panel.js";
+import { createStereoPanel } from "./stereo.js";
+
+// Used only when the node's view configuration cannot be read.
+const FALLBACK_CONFIGURATION = {
+  view: "fixed",
+  session: { mode: "immersive-ar" },
+  panel: { distance: 1.3, width: 1.5 },
+};
+
 if (navigator.xr) {
   let websocket = new WebSocket("wss://" + location.host + "/websocket");
   let runningSession = null;
+  let configuration = null;
+  let cameraPanel = null;
+  // Started early so the first frame is ready by session start. The
+  // session can only start once this has resolved, so the view and the
+  // panel are always set by then.
+  const configurationReady = fetch("view_configuration")
+    .then((response) => response.json())
+    .catch((error) => {
+      console.error("cannot read view configuration: " + error);
+      // So a missing file cannot stop the session starting.
+      return FALLBACK_CONFIGURATION;
+    })
+    .then((loaded) => {
+      configuration = loaded;
+      // The default fixed view hangs one image in the room; the stereo
+      // view locks one image per eye to the operator's head; "none"
+      // shows no camera at all.
+      if (configuration.view === "stereo") {
+        cameraPanel = createStereoPanel(configuration);
+      } else if (configuration.view !== "none") {
+        cameraPanel = createCameraPanel(configuration);
+      }
+      return configuration;
+    });
 
   websocket.addEventListener("close", (event) => {
     websocket = null;
@@ -37,6 +71,9 @@ if (navigator.xr) {
   }
   function onSessionEnd(event) {
     log("ended");
+    if (cameraPanel) {
+      cameraPanel.close();
+    }
     runningSession = null;
     if (websocket) {
       websocket.close();
@@ -166,19 +203,31 @@ if (navigator.xr) {
     session.addEventListener("squeeze", onSqueeze);
     session.addEventListener("squeezeend", onSqueezeEnd);
 
-    // We don't render anything but we need to setup render state to use
-    // immersive AR.
+    // The render state is needed to use immersive AR even when nothing
+    // is drawn into it. The camera views draw their panel into it.
     const canvas = document.createElement("canvas");
     const gl = canvas.getContext("webgl", { xrCompatible: true });
     session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+    if (cameraPanel) {
+      cameraPanel.attach(gl);
+    }
 
-    session
+    Promise.all([
       // We send relative position from viewer to the dora-rs node.
-      .requestReferenceSpace("viewer")
-      .then((space) => {
+      // Only the fixed view uses the world-fixed local space, to hang
+      // its panel in the room; the hand poses never do.
+      session.requestReferenceSpace("viewer"),
+      session.requestReferenceSpace("local"),
+    ])
+      .then(([viewerSpace, localSpace]) => {
+        const panelSpace =
+          configuration.view === "fixed" ? localSpace : viewerSpace;
         function onFrame(time, frame) {
           log("sources: " + session.inputSources.length);
-          sendFrame(session, space, time, frame);
+          sendFrame(session, viewerSpace, time, frame);
+          if (cameraPanel) {
+            cameraPanel.render(session, panelSpace, frame);
+          }
           session.requestAnimationFrame(onFrame);
         }
         session.requestAnimationFrame(onFrame);
@@ -187,17 +236,24 @@ if (navigator.xr) {
         alert(error);
       });
   }
-  function onStart() {
-    navigator.xr.requestSession("immersive-ar").then(onSessionStart);
+  function onStart(mode) {
+    navigator.xr.requestSession(mode).then(onSessionStart);
   }
 
   websocket.addEventListener("open", () => {
-    navigator.xr.isSessionSupported("immersive-ar").then((isSupported) => {
-      if (isSupported) {
-        // WebXR requires explicit user interaction on start. We use
-        // button click here.
-        document.getElementById("start").addEventListener("click", onStart);
-      }
+    // The session mode is configured with the head camera view so that
+    // passthrough can be turned off without changing this file.
+    configurationReady.then((configuration) => {
+      const mode = configuration.session.mode;
+      navigator.xr.isSessionSupported(mode).then((isSupported) => {
+        if (isSupported) {
+          // WebXR requires explicit user interaction on start. We use
+          // button click here.
+          document.getElementById("start").addEventListener("click", () => {
+            onStart(mode);
+          });
+        }
+      });
     });
   });
 }

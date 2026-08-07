@@ -28,3 +28,4 @@ pub mod quaternion;
 pub mod smoothing;
 pub mod state;
 pub mod transform;
+pub mod video;

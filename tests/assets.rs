@@ -25,7 +25,7 @@
 //! upstream checkout being present at build/test time.
 
 use dora_openarm_webxr_rust::assets::{
-    AR_JS, AR_JS_CONTENT_TYPE, INDEX_HTML, INDEX_HTML_CONTENT_TYPE,
+    AR_JS, AR_JS_CONTENT_TYPE, INDEX_HTML, INDEX_HTML_CONTENT_TYPE, PANEL_JS, STEREO_JS,
 };
 
 #[test]
@@ -45,7 +45,7 @@ fn index_html_matches_upstream_byte_length_and_key_markup() {
 fn ar_js_matches_upstream_byte_length_and_key_logic() {
     assert_eq!(
         AR_JS.len(),
-        6352,
+        8503,
         "ar.js byte length changed -- re-diff against upstream"
     );
     assert!(AR_JS.contains(r#"new WebSocket("wss://" + location.host + "/websocket")"#));
@@ -54,6 +54,10 @@ fn ar_js_matches_upstream_byte_length_and_key_logic() {
     assert!(AR_JS.contains("pico-4u"));
     assert!(AR_JS.contains("meta-quest-touch-plus"));
     assert!(AR_JS.contains(r#"requestReferenceSpace("viewer")"#));
+    assert!(AR_JS.contains("view_configuration"));
+    assert!(AR_JS.contains("createStereoPanel"));
+    assert!(PANEL_JS.contains("/video"));
+    assert!(STEREO_JS.contains("EYE_BY_PREFIX"));
 }
 
 #[test]

@@ -24,13 +24,19 @@ dora-openarm-webxr \
   --tls-key-file key.pem
 ```
 
-The equivalent environment variables are `HOST`, `PORT`, `TLS_CERTIFICATE_FILE`, and `TLS_KEY_FILE`. The defaults are `0.0.0.0:8443`.
+The equivalent environment variables are `HOST`, `PORT`, `TLS_CERTIFICATE_FILE`, and `TLS_KEY_FILE`. The optional `--view-configuration-file` also accepts `VIEW_CONFIGURATION_FILE`; the defaults are `0.0.0.0:8443` and the built-in fixed camera view.
 
 HTTP routes:
 
 - `/` and `/index.html`: embedded upstream WebXR page
-- `/ar.js`: embedded upstream JavaScript
+- `/ar.js`, `/panel.js`, `/stereo.js`: embedded WebXR JavaScript assets
 - `/websocket`: WebXR JSON WebSocket protocol
+- `/view_configuration`: startup YAML configuration served as JSON
+- `/video`: binary JPEG WebSocket. Each message is one eye-prefix byte (`0x00` left, `0x01` right) followed by the original `UInt8` JPEG payload.
+
+When the view configuration selects `fixed` (the default), `/video` sends the newest right-head-camera frame. `stereo` waits for both `camera_head_left` and `camera_head_right` and sends both together; `none` does not open the browser video panel. Camera inputs are stored independently from the pose WebSocket and stale frames are skipped.
+
+Example configuration files are included in [`example/view_camera.yaml`](example/view_camera.yaml) and [`example/view_camera_stereo.yaml`](example/view_camera_stereo.yaml). The optional `pose.frame_offset: [x, y, z]` entry overrides the default neutral hand offset.
 
 ## Dora outputs
 

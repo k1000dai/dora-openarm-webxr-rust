@@ -15,12 +15,14 @@
 //! Embedded browser assets.
 //!
 //! Upstream serves `src/dora_openarm_webxr/static/` with `FastAPI`'s
-//! `StaticFiles(directory=..., html=True)`, which for this two-file
-//! directory means: `/` and `/index.html` serve `index.html`, and `/ar.js`
-//! serves `ar.js`. Both files are Enactic-authored (no CDN or bundled
-//! third-party front-end dependencies) and are embedded byte-for-byte via
-//! `include_str!` rather than read from disk at runtime, so the binary is
-//! self-contained.
+//! `StaticFiles(directory=..., html=True)`, which for this four-file
+//! directory means: `/` and `/index.html` serve `index.html`, and
+//! `/ar.js`, `/panel.js` and `/stereo.js` serve their matching file.
+//! `ar.js` is an ES module and imports the other two by name, so all three
+//! have to be reachable at those paths. Every file is Enactic-authored (no
+//! CDN or bundled third-party front-end dependencies) and is embedded
+//! byte-for-byte via `include_str!` rather than read from disk at runtime,
+//! so the binary is self-contained.
 
 /// `static/index.html`, byte-identical to upstream
 /// `src/dora_openarm_webxr/static/index.html`.
@@ -29,10 +31,20 @@ pub const INDEX_HTML: &str = include_str!("../static/index.html");
 /// `static/ar.js`, byte-identical to upstream `src/dora_openarm_webxr/static/ar.js`.
 pub const AR_JS: &str = include_str!("../static/ar.js");
 
+/// `static/panel.js`, byte-identical to upstream
+/// `src/dora_openarm_webxr/static/panel.js`: the room-fixed head camera
+/// panel of the default `fixed` view.
+pub const PANEL_JS: &str = include_str!("../static/panel.js");
+
+/// `static/stereo.js`, byte-identical to upstream
+/// `src/dora_openarm_webxr/static/stereo.js`: the head-locked one-image-per-eye
+/// panel of the `stereo` view.
+pub const STEREO_JS: &str = include_str!("../static/stereo.js");
+
 /// The `Content-Type` served for `index.html`.
 pub const INDEX_HTML_CONTENT_TYPE: &str = "text/html; charset=utf-8";
 
-/// The `Content-Type` served for `ar.js`.
+/// The `Content-Type` served for `ar.js`, `panel.js` and `stereo.js`.
 ///
 /// Starlette's `StaticFiles` guesses this from the platform's `mimetypes`
 /// database, which can return either `text/javascript` or
@@ -40,4 +52,7 @@ pub const INDEX_HTML_CONTENT_TYPE: &str = "text/html; charset=utf-8";
 /// value recommended by RFC 9239 and what current Python `mimetypes`
 /// returns; this is not independently verified against every possible
 /// upstream deployment host.
-pub const AR_JS_CONTENT_TYPE: &str = "text/javascript; charset=utf-8";
+pub const JAVASCRIPT_CONTENT_TYPE: &str = "text/javascript; charset=utf-8";
+
+/// Backwards-compatible name retained for callers that only serve `ar.js`.
+pub const AR_JS_CONTENT_TYPE: &str = JAVASCRIPT_CONTENT_TYPE;

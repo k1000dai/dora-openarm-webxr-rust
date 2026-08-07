@@ -48,7 +48,10 @@ const ROBOT_ROTATION_QUAT: Quaternion = Quaternion {
 /// stored at `f32` precision because upstream builds this constant with
 /// `dtype=np.float32` before it is (numpy-promoted) added to the `f64`
 /// rotated position.
-const FRAME_OFFSET_CELL: [f32; 3] = [-0.085, 0.0, -0.14];
+///
+/// Overridden by `pose: frame_offset` in the view configuration file, which
+/// upstream reads once at startup into the same global.
+pub const DEFAULT_FRAME_OFFSET_CELL: [f32; 3] = [-0.085, 0.0, -0.14];
 
 /// Which controller/arm side a value belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,6 +87,12 @@ pub struct RawPose {
 /// meters, orientation scalar-first).
 #[must_use]
 pub fn adjust_pose(pose: &RawPose) -> [f32; 7] {
+    adjust_pose_with_offset(pose, DEFAULT_FRAME_OFFSET_CELL)
+}
+
+/// Converts a pose using an explicit neutral hand offset from `arm_origin`.
+#[must_use]
+pub fn adjust_pose_with_offset(pose: &RawPose, frame_offset: [f32; 3]) -> [f32; 7] {
     // Cast to f32 first, exactly like `np.array([...], dtype=np.float32)`.
     let position_f32 = [pose.x as f32, pose.y as f32, pose.z as f32];
     let position_f64 = [
@@ -94,9 +103,9 @@ pub fn adjust_pose(pose: &RawPose) -> [f32; 7] {
 
     let rotated = ROBOT_ROTATION_QUAT.rotate_vector(position_f64);
     let offset = [
-        f64::from(FRAME_OFFSET_CELL[0]),
-        f64::from(FRAME_OFFSET_CELL[1]),
-        f64::from(FRAME_OFFSET_CELL[2]),
+        f64::from(frame_offset[0]),
+        f64::from(frame_offset[1]),
+        f64::from(frame_offset[2]),
     ];
     let position = [
         rotated[0] + offset[0],
